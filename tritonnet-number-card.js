@@ -1,5 +1,20 @@
 class TritonNetNumberCard extends HTMLElement {
-    // strict: configuration validation
+    constructor() {
+        super();
+        this.loadFonts();
+    }
+
+    loadFonts() {
+        const fontId = 'tritonnet-fonts';
+        if (!document.getElementById(fontId)) {
+            const link = document.createElement('link');
+            link.id = fontId;
+            link.rel = 'stylesheet';
+            link.href = 'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;600&display=swap';
+            document.head.appendChild(link);
+        }
+    }
+
     setConfig(config) {
         if (!config.number_entity_id) {
             throw new Error('You must define a number_entity_id');
@@ -7,35 +22,36 @@ class TritonNetNumberCard extends HTMLElement {
         this.config = config;
     }
 
-    // strict: reactive update when HA state changes
     set hass(hass) {
         this._hass = hass;
         const entityId = this.config.number_entity_id;
         const stateObj = hass.states[entityId];
 
-        // Only render if we have state
         if (stateObj) {
             const value = stateObj.state;
-            // Use attribute unit, or config unit, or empty string
             const unit = stateObj.attributes.unit_of_measurement || this.config.unit || "";
 
-            // Check if value changed to avoid unnecessary re-renders
-            if (this._lastValue !== value || this._lastUnit !== unit) {
+            let description = this.config.description || 'System status normal.';
+
+            description = description.replace(/\{([a-z0-9_.]+)\}/g, (match, entity) => {
+                const ent = hass.states[entity];
+                return ent ? ent.state : match;
+            });
+
+            if (this._lastValue !== value || this._lastUnit !== unit || this._lastDesc !== description) {
                 this._lastValue = value;
                 this._lastUnit = unit;
-                this.render(value, unit);
+                this._lastDesc = description;
+                this.render(value, unit, description);
             }
         }
     }
 
-    render(value, unit) {
-        // Create shadow DOM if it doesn't exist
+    render(value, unit, description) {
         if (!this.shadowRoot) {
             this.attachShadow({ mode: 'open' });
         }
 
-        // --- HTML TEMPLATE (Based on V28) ---
-        // We inject the CSS directly here for encapsulation
         this.shadowRoot.innerHTML = `
             <style>
                 :host {
@@ -44,7 +60,6 @@ class TritonNetNumberCard extends HTMLElement {
                     --card-height: 120px;
                 }
                 
-                /* Reset standard HA card styles if needed */
                 * {
                     box-sizing: border-box;
                 }
@@ -54,7 +69,7 @@ class TritonNetNumberCard extends HTMLElement {
                     width: 100%;
                     max-width: var(--card-width);
                     height: var(--card-height);
-                    margin: 0 auto; /* Center in Lovelace column */
+                    margin: 0 auto;
                     
                     clip-path: polygon(
                         0 0,                        
@@ -88,14 +103,14 @@ class TritonNetNumberCard extends HTMLElement {
                     backdrop-filter: blur(10px);
                 }
 
-                /* Header */
+                /* Header - Locked Position */
                 .card-header {
                     flex: 0 0 auto;
                     margin-bottom: 0px; 
                 }
 
                 .card-title {
-                    font-family: 'Segoe UI', Roboto, Helvetica, sans-serif; /* Fallback for Orbitron */
+                    font-family: 'Orbitron', sans-serif;
                     font-size: 22px; 
                     font-weight: 700;
                     color: #c8d6e5;
@@ -106,7 +121,7 @@ class TritonNetNumberCard extends HTMLElement {
                     white-space: nowrap;
                 }
 
-                /* Content Row */
+                /* Content Row - Fills remaining space */
                 .content-row {
                     flex: 1; 
                     display: flex;
@@ -118,8 +133,8 @@ class TritonNetNumberCard extends HTMLElement {
 
                 .card-desc {
                     flex: 1; 
-                    min-width: 0; 
-                    font-family: 'Segoe UI', Roboto, Helvetica, sans-serif; /* Fallback for Rajdhani */
+                    min-width: 0; /* Critical for text wrapping */
+                    font-family: 'Rajdhani', sans-serif;
                     font-size: 11px;
                     font-weight: 500;
                     color: #8a8a9b;
@@ -128,7 +143,7 @@ class TritonNetNumberCard extends HTMLElement {
                     word-wrap: break-word; 
                 }
 
-                /* Value Section */
+                /* Value Section - Dynamic Width */
                 .value-section {
                     flex: 0 0 auto;
                     display: flex;
@@ -144,7 +159,7 @@ class TritonNetNumberCard extends HTMLElement {
                 }
 
                 .number {
-                    font-family: 'Segoe UI', Roboto, Helvetica, sans-serif;
+                    font-family: 'Orbitron', sans-serif;
                     font-size: 54px; 
                     font-weight: 900;
                     color: #00d2d3;
@@ -154,20 +169,13 @@ class TritonNetNumberCard extends HTMLElement {
                 }
 
                 .unit {
-                    font-family: 'Segoe UI', Roboto, Helvetica, sans-serif;
+                    font-family: 'Orbitron', sans-serif;
                     font-size: 18px;
                     margin-left: 3px;
                     color: rgba(0, 243, 255, 0.8);
                     font-weight: 700;
                     transform: translateY(-4px); 
                 }
-            </style>
-
-            <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet">
-            <style>
-                /* Apply loaded fonts with specificity to override fallbacks */
-                .card-title, .number, .unit { font-family: 'Orbitron', sans-serif !important; }
-                .card-desc { font-family: 'Rajdhani', sans-serif !important; }
             </style>
 
             <div class="card-wrapper">
@@ -177,7 +185,7 @@ class TritonNetNumberCard extends HTMLElement {
                     </div>
 
                     <div class="content-row">
-                        <div class="card-desc">${this.config.description || 'System status normal.'}</div>
+                        <div class="card-desc">${description}</div>
 
                         <div class="value-section">
                             <div class="number-wrapper" id="scaler">
@@ -190,11 +198,9 @@ class TritonNetNumberCard extends HTMLElement {
             </div>
         `;
 
-        // Trigger the sizing logic immediately after DOM update
         this.fitToBox();
     }
 
-    // --- AUTO SCALING LOGIC ---
     fitToBox() {
         const display = this.shadowRoot.getElementById('displayNumber');
         const unitEl = this.shadowRoot.getElementById('displayUnit');
@@ -202,26 +208,19 @@ class TritonNetNumberCard extends HTMLElement {
 
         if (!display || !scaler) return;
 
-        // Reset to max size to measure true width
         let currentFontSize = 54;
         display.style.fontSize = currentFontSize + 'px';
 
-        // Calculate max allowed width (approx 70% of card width 290px -> ~203px)
-        // We subtract a buffer for the unit and gap
         const maxAllowed = 200;
 
-        // Wait a tick for DOM to reflow, then measure
         requestAnimationFrame(() => {
             let contentWidth = scaler.scrollWidth;
-
-            // Shrink loop
             while (contentWidth > maxAllowed && currentFontSize > 20) {
-                currentFontSize -= 2; // Step down faster for performance
+                currentFontSize -= 2;
                 display.style.fontSize = currentFontSize + 'px';
                 contentWidth = scaler.scrollWidth;
             }
 
-            // Adjust Unit Vertical Alignment based on final font size
             if (currentFontSize < 40) {
                 unitEl.style.transform = "translateY(0px)";
                 unitEl.style.fontSize = "14px";
@@ -232,19 +231,16 @@ class TritonNetNumberCard extends HTMLElement {
         });
     }
 
-    // Optional: Define card size for Lovelace layout engine
     getCardSize() {
         return 3;
     }
 }
 
-// Register the custom element
 customElements.define('custom-ha-tritonnet-number-card', TritonNetNumberCard);
 
-// Add card to picker (optional, purely for UI editor)
 window.customCards = window.customCards || [];
 window.customCards.push({
     type: "custom-ha-tritonnet-number-card",
     name: "TritonNet Number Card",
-    description: "A futuristic HUD-style number card with auto-scaling text."
+    description: "Futuristic HUD card with auto-scaling text and templates."
 });
