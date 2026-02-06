@@ -3,6 +3,7 @@ class TritonNetNumberCard extends HTMLElement {
         super();
         this.loadFonts();
         this.resizeObserver = null;
+        this._fontsLoaded = false;
     }
 
     loadFonts() {
@@ -14,6 +15,13 @@ class TritonNetNumberCard extends HTMLElement {
             link.href = 'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;600&display=swap';
             document.head.appendChild(link);
         }
+
+        // Wait for fonts to be ready before first calculation
+        document.fonts.ready.then(() => {
+            this._fontsLoaded = true;
+            this.fitToBox();
+            this.fitTitle();
+        });
     }
 
     setConfig(config) {
@@ -64,7 +72,6 @@ class TritonNetNumberCard extends HTMLElement {
                 .card-wrapper {
                     position: relative;
                     width: 100%;
-                    max-width: 100%;
                     height: 120px;
                     margin: 0 auto;
                     clip-path: polygon(
@@ -85,7 +92,7 @@ class TritonNetNumberCard extends HTMLElement {
                     );
                     display: flex;
                     flex-direction: column;
-                    padding: 12px;
+                    padding: 10px; /* Reduced padding to give more space to content */
                     position: relative;
                     backdrop-filter: blur(10px);
                 }
@@ -93,8 +100,8 @@ class TritonNetNumberCard extends HTMLElement {
                 /* Header (Top) */
                 .card-header {
                     flex: 0 0 auto;
-                    margin-bottom: 0px; 
                     width: 100%;
+                    margin-bottom: 2px;
                     overflow: hidden;
                 }
 
@@ -109,7 +116,6 @@ class TritonNetNumberCard extends HTMLElement {
                     line-height: 1;
                     white-space: nowrap;
                     display: block;
-                    width: 100%;
                 }
 
                 /* Content Row */
@@ -119,21 +125,17 @@ class TritonNetNumberCard extends HTMLElement {
                     flex-direction: row;
                     align-items: center; 
                     width: 100%;
-                    gap: 0px; /* Gap handled by padding inside sections */
                     overflow: hidden; 
                 }
 
                 /* --- 30% TEXT SECTION --- */
                 .card-desc {
-                    /* STRICT 30% WIDTH */
                     flex: 0 0 30%;
                     width: 30%;
                     max-width: 30%;
+                    min-width: 0; /* Crucial for preventing overflow */
                     
-                    /* Force wrapping */
-                    min-width: 0; 
-                    
-                    padding-right: 5px;
+                    padding-right: 8px; /* Slight buffer */
                     
                     font-family: 'Rajdhani', sans-serif;
                     font-size: 11px;
@@ -142,24 +144,18 @@ class TritonNetNumberCard extends HTMLElement {
                     line-height: 1.2; 
                     white-space: normal;
                     word-wrap: break-word; 
-                    overflow-wrap: break-word;
                 }
 
                 /* --- 70% NUMBER SECTION --- */
                 .value-section {
-                    /* STRICT 70% WIDTH */
                     flex: 0 0 70%;
                     width: 70%;
                     max-width: 70%;
-                    
-                    /* Prevent blowout */
-                    min-width: 0; 
+                    min-width: 0; /* Crucial for preventing overflow */
                     
                     display: flex;
                     align-items: baseline;
                     justify-content: flex-end;
-                    
-                    /* Center vertically relative to text */
                     padding-top: 5px;
                 }
 
@@ -176,7 +172,7 @@ class TritonNetNumberCard extends HTMLElement {
                     color: #00d2d3;
                     text-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
                     line-height: 1; 
-                    transition: font-size 0.1s linear; 
+                    transition: font-size 0.1s ease-out; 
                 }
 
                 .unit {
@@ -209,7 +205,14 @@ class TritonNetNumberCard extends HTMLElement {
             </div>
         `;
 
+        // Start observation
         this.attachResizeObserver();
+
+        // Try fitting immediately in case fonts are cached
+        if (this._fontsLoaded) {
+            this.fitToBox();
+            this.fitTitle();
+        }
     }
 
     attachResizeObserver() {
@@ -218,6 +221,7 @@ class TritonNetNumberCard extends HTMLElement {
         if (!wrapper) return;
 
         this.resizeObserver = new ResizeObserver(() => {
+            // Debounce slightly to allow layout to settle
             requestAnimationFrame(() => {
                 this.fitToBox();
                 this.fitTitle();
@@ -234,16 +238,17 @@ class TritonNetNumberCard extends HTMLElement {
         const parentWidth = titleEl.parentElement.clientWidth;
         if (parentWidth === 0) return;
 
+        // Reset to max to re-measure
         let fontSize = 22;
         titleEl.style.fontSize = fontSize + 'px';
 
-        while (titleEl.scrollWidth > parentWidth && fontSize > 12) {
+        while (titleEl.scrollWidth > parentWidth && fontSize > 14) {
             fontSize--;
             titleEl.style.fontSize = fontSize + 'px';
         }
     }
 
-    // --- FIT NUMBER LOGIC (Responsive 70% Fix) ---
+    // --- FIT NUMBER LOGIC (With Font Loading Fix) ---
     fitToBox() {
         const display = this.shadowRoot.getElementById('displayNumber');
         const unitEl = this.shadowRoot.getElementById('displayUnit');
@@ -252,25 +257,26 @@ class TritonNetNumberCard extends HTMLElement {
 
         if (!display || !scaler || !valueSection) return;
 
+        // Reset to max size to measure true width
         let currentFontSize = 54;
         display.style.fontSize = currentFontSize + 'px';
 
-        // MEASURE ACTUAL WIDTH:
-        // We get the pixel width of the 70% container (e.g. 203px on desktop, 100px on mobile)
+        // Get actual available pixel width of the 70% container
         const containerWidth = valueSection.clientWidth;
-        if (containerWidth === 0) return; // Not visible yet
+
+        // Safety check: if container is 0 (hidden), stop
+        if (containerWidth === 0) return;
 
         let contentWidth = scaler.scrollWidth;
 
-        // Shrink until content fits inside the 70% container
-        // We allow scaling down to 14px for extreme mobile cases
+        // Shrink loop - allows shrinking down to 14px to prevent overlap
         while (contentWidth > containerWidth && currentFontSize > 14) {
             currentFontSize -= 2;
             display.style.fontSize = currentFontSize + 'px';
             contentWidth = scaler.scrollWidth;
         }
 
-        // Adjust Unit
+        // Adjust Unit Vertical Alignment
         if (currentFontSize < 30) {
             unitEl.style.transform = "translateY(0px)";
             unitEl.style.fontSize = "12px";
