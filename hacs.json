@@ -1,0 +1,6 @@
+{
+  "name": "TritonNet Number Card",
+  "description": "Futuristic HUD card with auto-scaling typography",
+  "render_readme": true,
+  "filename": "tritonnet-number-card.js"
+}
