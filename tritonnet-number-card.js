@@ -2,8 +2,10 @@ class TritonNetNumberCard extends HTMLElement {
     constructor() {
         super();
         this.loadFonts();
+        this.resizeObserver = null;
     }
 
+    // Load fonts into the main document head
     loadFonts() {
         const fontId = 'tritonnet-fonts';
         if (!document.getElementById(fontId)) {
@@ -58,8 +60,9 @@ class TritonNetNumberCard extends HTMLElement {
             <style>
                 :host {
                     display: block;
-                    --card-width: 290px;
-                    --card-height: 120px;
+                    /* CHANGED: Use 100% width to adapt to mobile columns */
+                    width: 100%; 
+                    height: 100%;
                 }
                 
                 * {
@@ -69,8 +72,9 @@ class TritonNetNumberCard extends HTMLElement {
                 .card-wrapper {
                     position: relative;
                     width: 100%;
-                    max-width: var(--card-width);
-                    height: var(--card-height);
+                    /* CHANGED: Max-width keeps it looking good on desktop, but allows shrinking on mobile */
+                    max-width: 100%; 
+                    height: 120px;
                     margin: 0 auto;
                     
                     clip-path: polygon(
@@ -110,7 +114,7 @@ class TritonNetNumberCard extends HTMLElement {
                     flex: 0 0 auto;
                     margin-bottom: 0px; 
                     width: 100%;
-                    overflow: hidden; /* Important for checking width */
+                    overflow: hidden; 
                 }
 
                 .card-title {
@@ -134,7 +138,8 @@ class TritonNetNumberCard extends HTMLElement {
                     flex-direction: row;
                     align-items: center; 
                     width: 100%;
-                    gap: 20px;
+                    gap: 15px; /* Reduced gap slightly for mobile safety */
+                    overflow: hidden; /* Prevent spillover */
                 }
 
                 .card-desc {
@@ -155,7 +160,8 @@ class TritonNetNumberCard extends HTMLElement {
                     display: flex;
                     align-items: baseline;
                     justify-content: flex-end;
-                    max-width: 70%;
+                    /* CHANGED: Removed max-width 70% constraint here, 
+                       we handle it in JS now to prevent mobile overlap */
                 }
 
                 .number-wrapper {
@@ -171,7 +177,7 @@ class TritonNetNumberCard extends HTMLElement {
                     color: #00d2d3;
                     text-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
                     line-height: 1; 
-                    transition: font-size 0.2s ease;
+                    transition: font-size 0.1s linear; /* Faster transition */
                 }
 
                 .unit {
@@ -184,13 +190,13 @@ class TritonNetNumberCard extends HTMLElement {
                 }
             </style>
 
-            <div class="card-wrapper">
+            <div class="card-wrapper" id="cardWrapper">
                 <div class="hud-card">
                     <div class="card-header">
                         <div class="card-title" id="cardTitle">${this.config.title || 'Power Usage'}</div>
                     </div>
 
-                    <div class="content-row">
+                    <div class="content-row" id="contentRow">
                         <div class="card-desc">${description}</div>
 
                         <div class="value-section">
@@ -204,60 +210,99 @@ class TritonNetNumberCard extends HTMLElement {
             </div>
         `;
 
-        // Run both scaling functions
-        this.fitToBox();
-        this.fitTitle();
+        // Start the ResizeObserver to handle mobile layout changes
+        this.attachResizeObserver();
     }
 
+    // --- 3. ROBUST RESIZE OBSERVER ---
+    // Triggers scaling whenever the card size changes (e.g. mobile rotate)
+    attachResizeObserver() {
+        if (this.resizeObserver) this.resizeObserver.disconnect();
+
+        const wrapper = this.shadowRoot.getElementById('cardWrapper');
+        if (!wrapper) return;
+
+        this.resizeObserver = new ResizeObserver(() => {
+            requestAnimationFrame(() => {
+                this.fitToBox();
+                this.fitTitle();
+            });
+        });
+
+        this.resizeObserver.observe(wrapper);
+    }
+
+    // --- 1. TITLE SCALING LOGIC ---
     fitTitle() {
         const titleEl = this.shadowRoot.getElementById('cardTitle');
         if (!titleEl) return;
 
+        // Measure parent width accurately
         const parentWidth = titleEl.parentElement.clientWidth;
-        let fontSize = 22; // Start at CSS default
+        if (parentWidth === 0) return; // Hidden card
+
+        let fontSize = 22;
         titleEl.style.fontSize = fontSize + 'px';
 
-        requestAnimationFrame(() => {
-            // Shrink loop
-            while (titleEl.scrollWidth > parentWidth && fontSize > 14) {
-                fontSize--;
-                titleEl.style.fontSize = fontSize + 'px';
-            }
-        });
+        // Shrink loop
+        while (titleEl.scrollWidth > parentWidth && fontSize > 12) {
+            fontSize--;
+            titleEl.style.fontSize = fontSize + 'px';
+        }
     }
 
+    // --- 2. NUMBER SCALING LOGIC (FIXED FOR MOBILE) ---
     fitToBox() {
         const display = this.shadowRoot.getElementById('displayNumber');
         const unitEl = this.shadowRoot.getElementById('displayUnit');
         const scaler = this.shadowRoot.getElementById('scaler');
+        const row = this.shadowRoot.getElementById('contentRow');
 
-        if (!display || !scaler) return;
+        if (!display || !scaler || !row) return;
 
+        // Reset to max size to measure true width
         let currentFontSize = 54;
         display.style.fontSize = currentFontSize + 'px';
 
-        const maxAllowed = 200; // Approx max width for number area
+        // DYNAMIC CALCULATION:
+        // Get the actual width of the container row
+        const rowWidth = row.clientWidth;
 
-        requestAnimationFrame(() => {
-            let contentWidth = scaler.scrollWidth;
-            while (contentWidth > maxAllowed && currentFontSize > 20) {
-                currentFontSize -= 2;
-                display.style.fontSize = currentFontSize + 'px';
-                contentWidth = scaler.scrollWidth;
-            }
+        // On mobile, the row might be only 150px wide.
+        // We ensure the number never takes more than 65% of that space.
+        const maxAllowed = rowWidth * 0.65;
 
-            if (currentFontSize < 40) {
-                unitEl.style.transform = "translateY(0px)";
-                unitEl.style.fontSize = "14px";
-            } else {
-                unitEl.style.transform = "translateY(-4px)";
-                unitEl.style.fontSize = "18px";
-            }
-        });
+        let contentWidth = scaler.scrollWidth;
+
+        // Shrink loop
+        // We lower the minimum font size to 16px to handle extreme mobile cases
+        while (contentWidth > maxAllowed && currentFontSize > 16) {
+            currentFontSize -= 2;
+            display.style.fontSize = currentFontSize + 'px';
+            contentWidth = scaler.scrollWidth;
+        }
+
+        // Adjust Unit Vertical Alignment
+        if (currentFontSize < 30) {
+            unitEl.style.transform = "translateY(0px)";
+            unitEl.style.fontSize = "12px";
+        } else if (currentFontSize < 40) {
+            unitEl.style.transform = "translateY(-2px)";
+            unitEl.style.fontSize = "14px";
+        } else {
+            unitEl.style.transform = "translateY(-4px)";
+            unitEl.style.fontSize = "18px";
+        }
     }
 
     getCardSize() {
         return 3;
+    }
+
+    disconnectedCallback() {
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect();
+        }
     }
 }
 
