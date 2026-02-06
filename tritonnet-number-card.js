@@ -33,11 +33,13 @@ class TritonNetNumberCard extends HTMLElement {
 
             let description = this.config.description || 'System status normal.';
 
+            // Parse templates {sensor.example}
             description = description.replace(/\{([a-z0-9_.]+)\}/g, (match, entity) => {
                 const ent = hass.states[entity];
                 return ent ? ent.state : match;
             });
 
+            // Re-render if anything changed
             if (this._lastValue !== value || this._lastUnit !== unit || this._lastDesc !== description) {
                 this._lastValue = value;
                 this._lastUnit = unit;
@@ -107,6 +109,8 @@ class TritonNetNumberCard extends HTMLElement {
                 .card-header {
                     flex: 0 0 auto;
                     margin-bottom: 0px; 
+                    width: 100%;
+                    overflow: hidden; /* Important for checking width */
                 }
 
                 .card-title {
@@ -119,9 +123,11 @@ class TritonNetNumberCard extends HTMLElement {
                     text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
                     line-height: 1;
                     white-space: nowrap;
+                    display: block;
+                    width: 100%;
                 }
 
-                /* Content Row - Fills remaining space */
+                /* Content Row */
                 .content-row {
                     flex: 1; 
                     display: flex;
@@ -133,7 +139,7 @@ class TritonNetNumberCard extends HTMLElement {
 
                 .card-desc {
                     flex: 1; 
-                    min-width: 0; /* Critical for text wrapping */
+                    min-width: 0; 
                     font-family: 'Rajdhani', sans-serif;
                     font-size: 11px;
                     font-weight: 500;
@@ -143,7 +149,7 @@ class TritonNetNumberCard extends HTMLElement {
                     word-wrap: break-word; 
                 }
 
-                /* Value Section - Dynamic Width */
+                /* Value Section */
                 .value-section {
                     flex: 0 0 auto;
                     display: flex;
@@ -181,7 +187,7 @@ class TritonNetNumberCard extends HTMLElement {
             <div class="card-wrapper">
                 <div class="hud-card">
                     <div class="card-header">
-                        <div class="card-title">${this.config.title || 'Power Usage'}</div>
+                        <div class="card-title" id="cardTitle">${this.config.title || 'Power Usage'}</div>
                     </div>
 
                     <div class="content-row">
@@ -198,7 +204,26 @@ class TritonNetNumberCard extends HTMLElement {
             </div>
         `;
 
+        // Run both scaling functions
         this.fitToBox();
+        this.fitTitle();
+    }
+
+    fitTitle() {
+        const titleEl = this.shadowRoot.getElementById('cardTitle');
+        if (!titleEl) return;
+
+        const parentWidth = titleEl.parentElement.clientWidth;
+        let fontSize = 22; // Start at CSS default
+        titleEl.style.fontSize = fontSize + 'px';
+
+        requestAnimationFrame(() => {
+            // Shrink loop
+            while (titleEl.scrollWidth > parentWidth && fontSize > 14) {
+                fontSize--;
+                titleEl.style.fontSize = fontSize + 'px';
+            }
+        });
     }
 
     fitToBox() {
@@ -211,7 +236,7 @@ class TritonNetNumberCard extends HTMLElement {
         let currentFontSize = 54;
         display.style.fontSize = currentFontSize + 'px';
 
-        const maxAllowed = 200;
+        const maxAllowed = 200; // Approx max width for number area
 
         requestAnimationFrame(() => {
             let contentWidth = scaler.scrollWidth;
