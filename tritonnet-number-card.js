@@ -5,7 +5,6 @@ class TritonNetNumberCard extends HTMLElement {
         this.resizeObserver = null;
     }
 
-    // Load fonts into the main document head
     loadFonts() {
         const fontId = 'tritonnet-fonts';
         if (!document.getElementById(fontId)) {
@@ -32,16 +31,13 @@ class TritonNetNumberCard extends HTMLElement {
         if (stateObj) {
             const value = stateObj.state;
             const unit = stateObj.attributes.unit_of_measurement || this.config.unit || "";
-
             let description = this.config.description || 'System status normal.';
 
-            // Parse templates {sensor.example}
             description = description.replace(/\{([a-z0-9_.]+)\}/g, (match, entity) => {
                 const ent = hass.states[entity];
                 return ent ? ent.state : match;
             });
 
-            // Re-render if anything changed
             if (this._lastValue !== value || this._lastUnit !== unit || this._lastDesc !== description) {
                 this._lastValue = value;
                 this._lastUnit = unit;
@@ -60,30 +56,20 @@ class TritonNetNumberCard extends HTMLElement {
             <style>
                 :host {
                     display: block;
-                    /* CHANGED: Use 100% width to adapt to mobile columns */
-                    width: 100%; 
+                    width: 100%;
                     height: 100%;
                 }
-                
-                * {
-                    box-sizing: border-box;
-                }
+                * { box-sizing: border-box; }
 
                 .card-wrapper {
                     position: relative;
                     width: 100%;
-                    /* CHANGED: Max-width keeps it looking good on desktop, but allows shrinking on mobile */
-                    max-width: 100%; 
+                    max-width: 100%;
                     height: 120px;
                     margin: 0 auto;
-                    
                     clip-path: polygon(
-                        0 0,                        
-                        calc(100% - 15px) 0,       
-                        100% 15px,                 
-                        100% 100%,                  
-                        15px 100%,                  
-                        0 calc(100% - 15px)         
+                        0 0, calc(100% - 15px) 0, 100% 15px, 
+                        100% 100%, 15px 100%, 0 calc(100% - 15px)
                     );
                     background: linear-gradient(135deg, rgba(0, 243, 255, 0.4), rgba(0, 243, 255, 0.1));
                     padding: 1px;
@@ -94,14 +80,9 @@ class TritonNetNumberCard extends HTMLElement {
                     height: 100%;
                     background: rgba(15, 15, 20, 0.85);
                     clip-path: polygon(
-                        0 0,                        
-                        calc(100% - 15px) 0,        
-                        100% 15px,                  
-                        100% 100%,                  
-                        15px 100%,                  
-                        0 calc(100% - 15px)         
+                        0 0, calc(100% - 15px) 0, 100% 15px, 
+                        100% 100%, 15px 100%, 0 calc(100% - 15px)
                     );
-                    
                     display: flex;
                     flex-direction: column;
                     padding: 12px;
@@ -109,12 +90,12 @@ class TritonNetNumberCard extends HTMLElement {
                     backdrop-filter: blur(10px);
                 }
 
-                /* Header - Locked Position */
+                /* Header (Top) */
                 .card-header {
                     flex: 0 0 auto;
                     margin-bottom: 0px; 
                     width: 100%;
-                    overflow: hidden; 
+                    overflow: hidden;
                 }
 
                 .card-title {
@@ -138,13 +119,22 @@ class TritonNetNumberCard extends HTMLElement {
                     flex-direction: row;
                     align-items: center; 
                     width: 100%;
-                    gap: 15px; /* Reduced gap slightly for mobile safety */
-                    overflow: hidden; /* Prevent spillover */
+                    gap: 0px; /* Gap handled by padding inside sections */
+                    overflow: hidden; 
                 }
 
+                /* --- 30% TEXT SECTION --- */
                 .card-desc {
-                    flex: 1; 
+                    /* STRICT 30% WIDTH */
+                    flex: 0 0 30%;
+                    width: 30%;
+                    max-width: 30%;
+                    
+                    /* Force wrapping */
                     min-width: 0; 
+                    
+                    padding-right: 5px;
+                    
                     font-family: 'Rajdhani', sans-serif;
                     font-size: 11px;
                     font-weight: 500;
@@ -152,16 +142,25 @@ class TritonNetNumberCard extends HTMLElement {
                     line-height: 1.2; 
                     white-space: normal;
                     word-wrap: break-word; 
+                    overflow-wrap: break-word;
                 }
 
-                /* Value Section */
+                /* --- 70% NUMBER SECTION --- */
                 .value-section {
-                    flex: 0 0 auto;
+                    /* STRICT 70% WIDTH */
+                    flex: 0 0 70%;
+                    width: 70%;
+                    max-width: 70%;
+                    
+                    /* Prevent blowout */
+                    min-width: 0; 
+                    
                     display: flex;
                     align-items: baseline;
                     justify-content: flex-end;
-                    /* CHANGED: Removed max-width 70% constraint here, 
-                       we handle it in JS now to prevent mobile overlap */
+                    
+                    /* Center vertically relative to text */
+                    padding-top: 5px;
                 }
 
                 .number-wrapper {
@@ -177,7 +176,7 @@ class TritonNetNumberCard extends HTMLElement {
                     color: #00d2d3;
                     text-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
                     line-height: 1; 
-                    transition: font-size 0.1s linear; /* Faster transition */
+                    transition: font-size 0.1s linear; 
                 }
 
                 .unit {
@@ -196,10 +195,10 @@ class TritonNetNumberCard extends HTMLElement {
                         <div class="card-title" id="cardTitle">${this.config.title || 'Power Usage'}</div>
                     </div>
 
-                    <div class="content-row" id="contentRow">
+                    <div class="content-row">
                         <div class="card-desc">${description}</div>
 
-                        <div class="value-section">
+                        <div class="value-section" id="valueSection">
                             <div class="number-wrapper" id="scaler">
                                 <span class="number" id="displayNumber">${value}</span>
                                 <span class="unit" id="displayUnit">${unit}</span>
@@ -210,15 +209,11 @@ class TritonNetNumberCard extends HTMLElement {
             </div>
         `;
 
-        // Start the ResizeObserver to handle mobile layout changes
         this.attachResizeObserver();
     }
 
-    // --- 3. ROBUST RESIZE OBSERVER ---
-    // Triggers scaling whenever the card size changes (e.g. mobile rotate)
     attachResizeObserver() {
         if (this.resizeObserver) this.resizeObserver.disconnect();
-
         const wrapper = this.shadowRoot.getElementById('cardWrapper');
         if (!wrapper) return;
 
@@ -228,61 +223,54 @@ class TritonNetNumberCard extends HTMLElement {
                 this.fitTitle();
             });
         });
-
         this.resizeObserver.observe(wrapper);
     }
 
-    // --- 1. TITLE SCALING LOGIC ---
+    // --- FIT TITLE LOGIC ---
     fitTitle() {
         const titleEl = this.shadowRoot.getElementById('cardTitle');
         if (!titleEl) return;
 
-        // Measure parent width accurately
         const parentWidth = titleEl.parentElement.clientWidth;
-        if (parentWidth === 0) return; // Hidden card
+        if (parentWidth === 0) return;
 
         let fontSize = 22;
         titleEl.style.fontSize = fontSize + 'px';
 
-        // Shrink loop
         while (titleEl.scrollWidth > parentWidth && fontSize > 12) {
             fontSize--;
             titleEl.style.fontSize = fontSize + 'px';
         }
     }
 
-    // --- 2. NUMBER SCALING LOGIC (FIXED FOR MOBILE) ---
+    // --- FIT NUMBER LOGIC (Responsive 70% Fix) ---
     fitToBox() {
         const display = this.shadowRoot.getElementById('displayNumber');
         const unitEl = this.shadowRoot.getElementById('displayUnit');
         const scaler = this.shadowRoot.getElementById('scaler');
-        const row = this.shadowRoot.getElementById('contentRow');
+        const valueSection = this.shadowRoot.getElementById('valueSection');
 
-        if (!display || !scaler || !row) return;
+        if (!display || !scaler || !valueSection) return;
 
-        // Reset to max size to measure true width
         let currentFontSize = 54;
         display.style.fontSize = currentFontSize + 'px';
 
-        // DYNAMIC CALCULATION:
-        // Get the actual width of the container row
-        const rowWidth = row.clientWidth;
-
-        // On mobile, the row might be only 150px wide.
-        // We ensure the number never takes more than 65% of that space.
-        const maxAllowed = rowWidth * 0.65;
+        // MEASURE ACTUAL WIDTH:
+        // We get the pixel width of the 70% container (e.g. 203px on desktop, 100px on mobile)
+        const containerWidth = valueSection.clientWidth;
+        if (containerWidth === 0) return; // Not visible yet
 
         let contentWidth = scaler.scrollWidth;
 
-        // Shrink loop
-        // We lower the minimum font size to 16px to handle extreme mobile cases
-        while (contentWidth > maxAllowed && currentFontSize > 16) {
+        // Shrink until content fits inside the 70% container
+        // We allow scaling down to 14px for extreme mobile cases
+        while (contentWidth > containerWidth && currentFontSize > 14) {
             currentFontSize -= 2;
             display.style.fontSize = currentFontSize + 'px';
             contentWidth = scaler.scrollWidth;
         }
 
-        // Adjust Unit Vertical Alignment
+        // Adjust Unit
         if (currentFontSize < 30) {
             unitEl.style.transform = "translateY(0px)";
             unitEl.style.fontSize = "12px";
