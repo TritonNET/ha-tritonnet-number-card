@@ -1,8 +1,5 @@
 name: Manual Release
 
-# This sets the name dynamically based on inputs or context
-run-name: Release ${{ inputs.version_type }} by @${{ github.actor }}
-
 on:
   workflow_dispatch:
     inputs:
@@ -15,8 +12,10 @@ on:
           - minor
           - major
 
+# TOP LEVEL PERMISSIONS - REQUIRED
 permissions:
   contents: write
+  actions: write  # Required to update the run title
 
 jobs:
   release:
@@ -31,13 +30,19 @@ jobs:
       - name: Calculate Next Version
         id: version
         run: |
-          # [Same calculation logic as before]
+          # Get the latest tag, default to v0.0
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0")
+          echo "Latest tag found: $LATEST_TAG"
+          
+          # Remove 'v' prefix
           VERSION=${LATEST_TAG#v}
+          
+          # Split by dot
           IFS='.' read -r -a parts <<< "$VERSION"
           MAJOR=${parts[0]:-0}
           MINOR=${parts[1]:-0}
 
+          # Increment logic
           if [ "${{ inputs.version_type }}" == "major" ]; then
             MAJOR=$((MAJOR + 1))
             MINOR=0
@@ -47,17 +52,15 @@ jobs:
           
           NEW_TAG="v$MAJOR.$MINOR"
           echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "Calculated new version: $NEW_TAG"
 
-      # OPTIONAL: If you really want the *calculated* version in the title
-      # You must use the API because 'run-name' is evaluated BEFORE steps run.
-      # To make the API call work, we need to fix the ID usage.
-      - name: Update Workflow Run Name (API Fix)
-        if: always()
+      - name: Update Workflow Run Name
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # We use the GITHUB_RUN_ID environment variable directly
-          gh api --method PATCH -H "Accept: application/vnd.github+json" \
+          # If this fails with 404, check Repo Settings > Actions > Workflow permissions
+          gh api --method PATCH \
+            -H "Accept: application/vnd.github+json" \
             /repos/${{ github.repository }}/actions/runs/${{ github.run_id }} \
             -f name="Release ${{ steps.version.outputs.new_tag }}"
 
@@ -65,6 +68,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # We explicitly list ONLY the .js file to exclude index.html
           gh release create ${{ steps.version.outputs.new_tag }} \
             --generate-notes \
             --title "${{ steps.version.outputs.new_tag }}" \
