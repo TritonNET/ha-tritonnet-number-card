@@ -12,10 +12,9 @@ on:
           - minor
           - major
 
-# TOP LEVEL PERMISSIONS - REQUIRED
 permissions:
   contents: write
-  actions: write  # Required to update the run title
+  actions: write  # Needed for renaming the run
 
 jobs:
   release:
@@ -25,24 +24,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Calculate Next Version
         id: version
         run: |
-          # Get the latest tag, default to v0.0
+          # Get latest tag or default to v0.0
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0")
-          echo "Latest tag found: $LATEST_TAG"
-          
-          # Remove 'v' prefix
           VERSION=${LATEST_TAG#v}
-          
-          # Split by dot
           IFS='.' read -r -a parts <<< "$VERSION"
           MAJOR=${parts[0]:-0}
           MINOR=${parts[1]:-0}
 
-          # Increment logic
           if [ "${{ inputs.version_type }}" == "major" ]; then
             MAJOR=$((MAJOR + 1))
             MINOR=0
@@ -55,10 +47,11 @@ jobs:
           echo "Calculated new version: $NEW_TAG"
 
       - name: Update Workflow Run Name
+        # This allows the job to continue even if the rename fails (404)
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # If this fails with 404, check Repo Settings > Actions > Workflow permissions
           gh api --method PATCH \
             -H "Accept: application/vnd.github+json" \
             /repos/${{ github.repository }}/actions/runs/${{ github.run_id }} \
@@ -68,7 +61,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # We explicitly list ONLY the .js file to exclude index.html
+          # We explicitly specify ONLY the .js file to exclude index.html
           gh release create ${{ steps.version.outputs.new_tag }} \
             --generate-notes \
             --title "${{ steps.version.outputs.new_tag }}" \
