@@ -45,6 +45,14 @@ class TritonNetNumberCard extends HTMLElement {
             unit = this.config.unit || "";
         }
 
+        const autoFormat = (this.config.number_auto_format !== false);
+
+        if (autoFormat) {
+            const result = this.autoScale(value, unit);
+            value = result.value;
+            unit = result.unit;
+        }
+
         let description = this.config.description || 'System status normal.';
         description = description.replace(/\{([a-z0-9_.]+)\}/g, (match, entity) => {
             const ent = hass.states[entity];
@@ -57,6 +65,46 @@ class TritonNetNumberCard extends HTMLElement {
             this._lastDesc = description;
             this.render(value, unit, description);
         }
+    }
+
+    autoScale(value, unit) {
+        let num = parseFloat(value);
+        if (isNaN(num)) return { value, unit }; // Return original if not a number
+
+        const originalUnit = (unit || "").trim();
+        const lowerUnit = originalUnit.toLowerCase();
+
+        // DEFINITION OF SCALABLE UNITS
+        const rules = {
+            'wh': ['kWh', 'MWh', 'GWh'],
+            'kwh': ['MWh', 'GWh'],
+            'w': ['kW', 'MW', 'GW'],
+            'kw': ['MW', 'GW'],
+            'va': ['kVA', 'MVA'],
+            'var': ['kvar', 'Mvar']
+        };
+
+        if (!rules[lowerUnit]) {
+            return { value, unit: originalUnit };
+        }
+
+        const suffixes = rules[lowerUnit];
+        let currentSuffixIndex = -1;
+
+        // Scale if >= 1000
+        while (num >= 1000 && currentSuffixIndex < suffixes.length - 1) {
+            num /= 1000;
+            currentSuffixIndex++;
+        }
+
+        if (currentSuffixIndex >= 0) {
+            return {
+                value: parseFloat(num.toFixed(2)).toString(),
+                unit: suffixes[currentSuffixIndex]
+            };
+        }
+
+        return { value, unit: originalUnit };
     }
 
     render(value, unit, description) {
