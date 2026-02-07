@@ -15,19 +15,14 @@ class TritonNetNumberCard extends HTMLElement {
             link.href = 'https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;600&display=swap';
             document.head.appendChild(link);
         }
-
-        // Wait for fonts to be ready before first calculation
         document.fonts.ready.then(() => {
             this._fontsLoaded = true;
-            this.fitToBox();
-            this.fitTitle();
+            this.fitAll();
         });
     }
 
     setConfig(config) {
-        if (!config.number_entity_id) {
-            throw new Error('You must define a number_entity_id');
-        }
+        if (!config.number_entity_id) throw new Error('You must define a number_entity_id');
         this.config = config;
     }
 
@@ -62,140 +57,137 @@ class TritonNetNumberCard extends HTMLElement {
 
         this.shadowRoot.innerHTML = `
             <style>
-                :host {
-                    display: block;
-                    width: 100%;
-                    height: 100%;
-                }
+                :host { display: block; width: 100%; height: 100%; }
                 * { box-sizing: border-box; }
-
+                
                 .card-wrapper {
-                    position: relative;
-                    width: 100%;
-                    height: 120px;
+                    position: relative; 
+                    width: 100%; 
+                    height: 120px; 
                     margin: 0 auto;
-                    clip-path: polygon(
-                        0 0, calc(100% - 15px) 0, 100% 15px, 
-                        100% 100%, 15px 100%, 0 calc(100% - 15px)
-                    );
+                    clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 15px 100%, 0 calc(100% - 15px));
                     background: linear-gradient(135deg, rgba(0, 243, 255, 0.4), rgba(0, 243, 255, 0.1));
                     padding: 1px;
                 }
-
+                
                 .hud-card {
-                    width: 100%;
-                    height: 100%;
+                    width: 100%; 
+                    height: 100%; 
                     background: rgba(15, 15, 20, 0.85);
-                    clip-path: polygon(
-                        0 0, calc(100% - 15px) 0, 100% 15px, 
-                        100% 100%, 15px 100%, 0 calc(100% - 15px)
-                    );
-                    display: flex;
-                    flex-direction: column;
-                    padding: 10px; /* Reduced padding to give more space to content */
-                    position: relative;
+                    clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 15px 100%, 0 calc(100% - 15px));
+                    display: flex; 
+                    flex-direction: column; 
+                    padding: 12px;
+                    position: relative; 
                     backdrop-filter: blur(10px);
                 }
-
-                /* Header (Top) */
-                .card-header {
-                    flex: 0 0 auto;
-                    width: 100%;
-                    margin-bottom: 2px;
-                    overflow: hidden;
-                }
-
-                .card-title {
-                    font-family: 'Orbitron', sans-serif;
-                    font-size: 22px; 
-                    font-weight: 700;
-                    color: #c8d6e5;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px; 
-                    text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
-                    line-height: 1;
-                    white-space: nowrap;
-                    display: block;
-                }
-
-                /* Content Row */
-                .content-row {
-                    flex: 1; 
-                    display: flex;
-                    flex-direction: row;
-                    align-items: center; 
-                    width: 100%;
+                
+                /* HEADER - Top Section */
+                .card-header { 
+                    flex: 0 0 auto; 
+                    width: 100%; 
+                    margin-bottom: 8px; 
                     overflow: hidden; 
                 }
-
-                /* --- 30% TEXT SECTION --- */
+                
+                .card-title {
+                    font-family: 'Orbitron', sans-serif; 
+                    font-size: 22px; 
+                    font-weight: 700; 
+                    color: #c8d6e5;
+                    text-transform: uppercase; 
+                    letter-spacing: 0.5px; 
+                    text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+                    line-height: 1; 
+                    white-space: nowrap; 
+                    display: block; 
+                    width: 100%;
+                }
+                
+                /* CONTENT GRID - 30% / 70% Split */
+                .content-grid { 
+                    flex: 1; 
+                    width: 100%;
+                    display: grid;
+                    grid-template-columns: 30% 70%; 
+                    gap: 0; 
+                    align-items: center;
+                    overflow: hidden;
+                    min-height: 0;
+                }
+                
+                /* 30% Description Section */
                 .card-desc {
-                    flex: 0 0 30%;
-                    width: 30%;
-                    max-width: 30%;
-                    min-width: 0; /* Crucial for preventing overflow */
-                    
-                    padding-right: 8px; /* Slight buffer */
-                    
+                    min-width: 0;
+                    height: 100%;
+                    padding-right: 12px;
                     font-family: 'Rajdhani', sans-serif;
-                    font-size: 11px;
-                    font-weight: 500;
-                    color: #8a8a9b;
-                    line-height: 1.2; 
-                    white-space: normal;
-                    word-wrap: break-word; 
-                }
-
-                /* --- 70% NUMBER SECTION --- */
-                .value-section {
-                    flex: 0 0 70%;
-                    width: 70%;
-                    max-width: 70%;
-                    min-width: 0; /* Crucial for preventing overflow */
-                    
+                    font-size: 14px; 
+                    font-weight: 500; 
+                    color: #8a8a9b; 
+                    line-height: 1.3;
                     display: flex;
-                    align-items: baseline;
+                    align-items: center;
+                    overflow: hidden;
+                }
+                
+                .desc-text {
+                    width: 100%;
+                    word-wrap: break-word;
+                    overflow-wrap: break-word;
+                    hyphens: auto;
+                }
+                
+                /* 70% Value Section */
+                .value-section {
+                    min-width: 0;
+                    height: 100%;
+                    position: relative;
+                    display: flex; 
                     justify-content: flex-end;
-                    padding-top: 5px;
+                    align-items: center;
+                    overflow: hidden;
                 }
-
-                .number-wrapper {
-                    display: inline-flex;
-                    align-items: baseline;
+                
+                .number-wrapper { 
+                    display: inline-flex; 
+                    align-items: baseline; 
                     white-space: nowrap;
+                    max-width: 100%;
                 }
-
+                
                 .number {
-                    font-family: 'Orbitron', sans-serif;
+                    font-family: 'Orbitron', sans-serif; 
                     font-size: 54px; 
                     font-weight: 900;
-                    color: #00d2d3;
+                    color: #00d2d3; 
                     text-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
-                    line-height: 1; 
-                    transition: font-size 0.1s ease-out; 
+                    line-height: 1;
                 }
-
+                
                 .unit {
-                    font-family: 'Orbitron', sans-serif;
-                    font-size: 18px;
-                    margin-left: 3px;
-                    color: rgba(0, 243, 255, 0.8);
+                    font-family: 'Orbitron', sans-serif; 
+                    font-size: 18px; 
+                    margin-left: 4px;
+                    color: rgba(0, 243, 255, 0.8); 
                     font-weight: 700;
-                    transform: translateY(-4px); 
+                    transform: translateY(-4px);
                 }
             </style>
-
+            
             <div class="card-wrapper" id="cardWrapper">
                 <div class="hud-card">
                     <div class="card-header">
                         <div class="card-title" id="cardTitle">${this.config.title || 'Power Usage'}</div>
                     </div>
-
-                    <div class="content-row">
-                        <div class="card-desc">${description}</div>
-
+                    
+                    <div class="content-grid">
+                        <div class="card-desc" id="descSection">
+                            <div class="desc-text" id="descText">${description}</div>
+                        </div>
+                        
                         <div class="value-section" id="valueSection">
-                            <div class="number-wrapper" id="scaler">
+                            <div class="number-wrapper" id="numberWrapper">
                                 <span class="number" id="displayNumber">${value}</span>
                                 <span class="unit" id="displayUnit">${unit}</span>
                             </div>
@@ -205,14 +197,12 @@ class TritonNetNumberCard extends HTMLElement {
             </div>
         `;
 
-        // Start observation
         this.attachResizeObserver();
-
-        // Try fitting immediately in case fonts are cached
-        if (this._fontsLoaded) {
-            this.fitToBox();
-            this.fitTitle();
-        }
+        requestAnimationFrame(() => {
+            if (this._fontsLoaded) {
+                this.fitAll();
+            }
+        });
     }
 
     attachResizeObserver() {
@@ -221,16 +211,19 @@ class TritonNetNumberCard extends HTMLElement {
         if (!wrapper) return;
 
         this.resizeObserver = new ResizeObserver(() => {
-            // Debounce slightly to allow layout to settle
             requestAnimationFrame(() => {
-                this.fitToBox();
-                this.fitTitle();
+                this.fitAll();
             });
         });
         this.resizeObserver.observe(wrapper);
     }
 
-    // --- FIT TITLE LOGIC ---
+    fitAll() {
+        this.fitTitle();
+        this.fitDescription();
+        this.fitNumber();
+    }
+
     fitTitle() {
         const titleEl = this.shadowRoot.getElementById('cardTitle');
         if (!titleEl) return;
@@ -238,64 +231,70 @@ class TritonNetNumberCard extends HTMLElement {
         const parentWidth = titleEl.parentElement.clientWidth;
         if (parentWidth === 0) return;
 
-        // Reset to max to re-measure
         let fontSize = 22;
         titleEl.style.fontSize = fontSize + 'px';
 
-        while (titleEl.scrollWidth > parentWidth && fontSize > 14) {
+        while (titleEl.scrollWidth > parentWidth && fontSize > 12) {
             fontSize--;
             titleEl.style.fontSize = fontSize + 'px';
         }
     }
 
-    // --- FIT NUMBER LOGIC (With Font Loading Fix) ---
-    fitToBox() {
-        const display = this.shadowRoot.getElementById('displayNumber');
+    fitDescription() {
+        const descSection = this.shadowRoot.getElementById('descSection');
+        const descText = this.shadowRoot.getElementById('descText');
+        if (!descSection || !descText) return;
+
+        const availableWidth = descSection.clientWidth;
+        const availableHeight = descSection.clientHeight;
+        if (availableWidth === 0 || availableHeight === 0) return;
+
+        let fontSize = 14;
+        descText.style.fontSize = fontSize + 'px';
+
+        // Shrink if text overflows vertically or horizontally
+        while ((descText.scrollHeight > availableHeight || descText.scrollWidth > availableWidth) && fontSize > 9) {
+            fontSize--;
+            descText.style.fontSize = fontSize + 'px';
+        }
+    }
+
+    fitNumber() {
+        const displayNumber = this.shadowRoot.getElementById('displayNumber');
         const unitEl = this.shadowRoot.getElementById('displayUnit');
-        const scaler = this.shadowRoot.getElementById('scaler');
+        const numberWrapper = this.shadowRoot.getElementById('numberWrapper');
         const valueSection = this.shadowRoot.getElementById('valueSection');
 
-        if (!display || !scaler || !valueSection) return;
+        if (!displayNumber || !numberWrapper || !valueSection) return;
 
-        // Reset to max size to measure true width
+        const availableWidth = valueSection.clientWidth;
+        if (availableWidth === 0) return;
+
+        // Start at maximum size
         let currentFontSize = 54;
-        display.style.fontSize = currentFontSize + 'px';
+        displayNumber.style.fontSize = currentFontSize + 'px';
 
-        // Get actual available pixel width of the 70% container
-        const containerWidth = valueSection.clientWidth;
-
-        // Safety check: if container is 0 (hidden), stop
-        if (containerWidth === 0) return;
-
-        let contentWidth = scaler.scrollWidth;
-
-        // Shrink loop - allows shrinking down to 14px to prevent overlap
-        while (contentWidth > containerWidth && currentFontSize > 14) {
-            currentFontSize -= 2;
-            display.style.fontSize = currentFontSize + 'px';
-            contentWidth = scaler.scrollWidth;
+        // Shrink until it fits
+        let contentWidth = numberWrapper.scrollWidth;
+        while (contentWidth > availableWidth && currentFontSize > 14) {
+            currentFontSize--;
+            displayNumber.style.fontSize = currentFontSize + 'px';
+            contentWidth = numberWrapper.scrollWidth;
         }
 
-        // Adjust Unit Vertical Alignment
+        // Adjust unit size and position based on number size
         if (currentFontSize < 30) {
             unitEl.style.transform = "translateY(0px)";
             unitEl.style.fontSize = "12px";
         } else if (currentFontSize < 40) {
             unitEl.style.transform = "translateY(-2px)";
             unitEl.style.fontSize = "14px";
+        } else if (currentFontSize < 50) {
+            unitEl.style.transform = "translateY(-3px)";
+            unitEl.style.fontSize = "16px";
         } else {
             unitEl.style.transform = "translateY(-4px)";
             unitEl.style.fontSize = "18px";
-        }
-    }
-
-    getCardSize() {
-        return 3;
-    }
-
-    disconnectedCallback() {
-        if (this.resizeObserver) {
-            this.resizeObserver.disconnect();
         }
     }
 }
