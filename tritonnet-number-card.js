@@ -22,31 +22,40 @@ class TritonNetNumberCard extends HTMLElement {
     }
 
     setConfig(config) {
-        if (!config.number_entity_id) throw new Error('You must define a number_entity_id');
+        if (!config.number_entity) throw new Error('You must define a number_entity');
         this.config = config;
     }
 
     set hass(hass) {
         this._hass = hass;
-        const entityId = this.config.number_entity_id;
-        const stateObj = hass.states[entityId];
 
-        if (stateObj) {
-            const value = stateObj.state;
-            const unit = stateObj.attributes.unit_of_measurement || this.config.unit || "";
-            let description = this.config.description || 'System status normal.';
+        const inputEntity = this.config.number_entity;
+        let value, unit;
 
-            description = description.replace(/\{([a-z0-9_.]+)\}/g, (match, entity) => {
-                const ent = hass.states[entity];
+        if (hass.states[inputEntity]) {
+            const stateObj = hass.states[inputEntity];
+            value = stateObj.state;
+            unit = stateObj.attributes.unit_of_measurement || this.config.unit || "";
+        } else {
+            value = inputEntity.replace(/\{([a-z0-9_.]+)\}/g, (match, entityId) => {
+                const ent = hass.states[entityId];
                 return ent ? ent.state : match;
             });
 
-            if (this._lastValue !== value || this._lastUnit !== unit || this._lastDesc !== description) {
-                this._lastValue = value;
-                this._lastUnit = unit;
-                this._lastDesc = description;
-                this.render(value, unit, description);
-            }
+            unit = this.config.unit || "";
+        }
+
+        let description = this.config.description || 'System status normal.';
+        description = description.replace(/\{([a-z0-9_.]+)\}/g, (match, entity) => {
+            const ent = hass.states[entity];
+            return ent ? ent.state : match;
+        });
+
+        if (this._lastValue !== value || this._lastUnit !== unit || this._lastDesc !== description) {
+            this._lastValue = value;
+            this._lastUnit = unit;
+            this._lastDesc = description;
+            this.render(value, unit, description);
         }
     }
 
