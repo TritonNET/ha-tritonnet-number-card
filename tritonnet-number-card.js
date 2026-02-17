@@ -24,8 +24,9 @@ class TritonNetNumberCard extends HTMLElement {
     setConfig(config) {
         if (!config.number_entity) throw new Error('You must define a number_entity');
 
-        config.theme = config.theme || 'triton-hud';
-        this.config = config;
+        // HA passes a frozen/read-only config object. We must clone it before setting defaults!
+        this.config = { ...config };
+        this.config.theme = this.config.theme || 'minimal-dark';
     }
 
     set hass(hass) {
@@ -181,26 +182,26 @@ class TritonNetNumberCard extends HTMLElement {
                 .theme-minimal-dark {
                     --tnc-bg-wrapper: transparent;
                     --tnc-wrapper-padding: 0px;
-                    --tnc-bg-card: rgb(32, 33, 36); /* Native HA Dark Card Background */
-                    --tnc-card-border: 1px solid rgb(42, 43, 46); /* Native HA Dark Card Border */
+                    --tnc-bg-card: rgb(32, 33, 36); 
+                    --tnc-card-border: 1px solid rgb(42, 43, 46); 
                     --tnc-clip-path: none;
                     --tnc-border-radius: 12px;
                     --tnc-card-padding: 16px;
                     --tnc-backdrop-filter: none;
                     
                     --tnc-title-font: var(--tnc-default-font);
-                    --tnc-title-color: #9e9e9e; /* Secondary Text Color */
+                    --tnc-title-color: #9e9e9e; 
                     --tnc-title-weight: 500;
                     --tnc-title-transform: none;
                     --tnc-title-shadow: none;
                     
                     --tnc-value-font: var(--tnc-default-font);
-                    --tnc-value-color: #e1e1e1; /* Primary Text Color */
+                    --tnc-value-color: #e1e1e1; 
                     --tnc-value-weight: 400;
                     --tnc-value-shadow: none;
                     
                     --tnc-unit-font: var(--tnc-default-font);
-                    --tnc-unit-color: #9e9e9e; /* Secondary Text Color */
+                    --tnc-unit-color: #9e9e9e; 
                     --tnc-unit-weight: 400;
 
                     --tnc-desc-font: var(--tnc-default-font);
@@ -210,7 +211,7 @@ class TritonNetNumberCard extends HTMLElement {
                     --tnc-desc-display: none; 
                     --tnc-value-align: flex-start; 
                     --tnc-icon-display: block;
-                    --tnc-icon-color: #9e9e9e; /* Secondary Icon Color */
+                    --tnc-icon-color: #9e9e9e; 
                     --tnc-header-justify: space-between;
                     --tnc-content-margin-top: 12px;
                 }
