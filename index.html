@@ -66,7 +66,7 @@
             font-weight: bold;
         }
 
-        input[type="text"], input[type="number"] {
+        input[type="text"], input[type="number"], select {
             background: #2b2b2b;
             border: 1px solid #444;
             color: #fff;
@@ -103,23 +103,36 @@
         </div>
 
         <div class="control-group">
+            <label>Theme Selection</label>
+            <select id="themeInput">
+                <option value="triton-hud">Triton HUD (Original)</option>
+                <option value="minimal-dark" selected>Minimal Dark</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Icon</label>
+            <input type="text" id="iconInput" value="mdi:flash">
+        </div>
+
+        <div class="control-group">
             <label>Sensor Value</label>
-            <input type="text" id="valInput" value="485">
+            <input type="text" id="valInput" value="184">
         </div>
 
         <div class="control-group">
             <label>Unit</label>
-            <input type="text" id="unitInput" value="W">
+            <input type="text" id="unitInput" value="Wh">
         </div>
 
         <div class="control-group full">
             <label>Title</label>
-            <input type="text" id="titleInput" value="Power Usage">
+            <input type="text" id="titleInput" value="Total Grid Export">
         </div>
 
         <div class="control-group full">
-            <label>Description (Supports {sensor.daily_yield})</label>
-            <input type="text" id="descInput" value="Total output from main solar array. System optimal.">
+            <label>Description (Ignored in Minimal theme)</label>
+            <input type="text" id="descInput" value="Main solar array active. Yield: {sensor.daily_yield} kWh.">
         </div>
     </div>
 
@@ -136,22 +149,31 @@
         const unitInput = document.getElementById('unitInput');
         const titleInput = document.getElementById('titleInput');
         const descInput = document.getElementById('descInput');
+        const themeInput = document.getElementById('themeInput');
+        const iconInput = document.getElementById('iconInput');
 
         // Initial Config (Simulates YAML config)
         let config = {
             type: 'custom-ha-tritonnet-number-card',
             title: titleInput.value,
             description: descInput.value,
-            number_entity_id: 'sensor.power_meter'
+            number_entity: 'sensor.power_meter',
+            theme: themeInput.value,
+            icon: iconInput.value
         };
         card.setConfig(config);
 
         // Mock Hass Object Generator
         function updateCard() {
-            // Update Config if Title/Desc changed
+            // Update Config properties dynamically
             config.title = titleInput.value;
             config.description = descInput.value;
+            config.theme = themeInput.value;
+            config.icon = iconInput.value;
             card.setConfig(config);
+
+            // Force the JS cache to clear so it re-renders immediately on changes
+            card._lastValue = null;
 
             // Construct Mock Hass Object
             const mockHass = {
@@ -178,13 +200,16 @@
             const w = e.target.value;
             container.style.width = w + 'px';
             widthVal.textContent = w + 'px';
-            // ResizeObserver in the card will handle the internal layout!
         });
 
         // 2. Live Data Updates
-        const inputs = [valInput, unitInput, titleInput, descInput];
+        const inputs = [valInput, unitInput, titleInput, descInput, themeInput, iconInput];
         inputs.forEach(input => {
             input.addEventListener('input', updateCard);
+            // Specifically add 'change' event for the <select> element so it fires immediately on click
+            if (input.tagName === 'SELECT') {
+                input.addEventListener('change', updateCard);
+            }
         });
 
         // Initial Trigger

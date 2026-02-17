@@ -23,6 +23,8 @@ class TritonNetNumberCard extends HTMLElement {
 
     setConfig(config) {
         if (!config.number_entity) throw new Error('You must define a number_entity');
+
+        config.theme = config.theme || 'triton-hud';
         this.config = config;
     }
 
@@ -31,17 +33,21 @@ class TritonNetNumberCard extends HTMLElement {
 
         const inputEntity = this.config.number_entity;
         let value, unit;
+        let icon = this.config.icon || "";
 
         if (hass.states[inputEntity]) {
             const stateObj = hass.states[inputEntity];
             value = stateObj.state;
             unit = stateObj.attributes.unit_of_measurement || this.config.unit || "";
+
+            if (!icon && stateObj.attributes.icon) {
+                icon = stateObj.attributes.icon;
+            }
         } else {
             value = inputEntity.replace(/\{([a-z0-9_.]+)\}/g, (match, entityId) => {
                 const ent = hass.states[entityId];
                 return ent ? ent.state : match;
             });
-
             unit = this.config.unit || "";
         }
 
@@ -53,28 +59,37 @@ class TritonNetNumberCard extends HTMLElement {
             unit = result.unit;
         }
 
-        let description = this.config.description || 'System status normal.';
+        let description = this.config.description || '';
         description = description.replace(/\{([a-z0-9_.]+)\}/g, (match, entity) => {
             const ent = hass.states[entity];
             return ent ? ent.state : match;
         });
 
-        if (this._lastValue !== value || this._lastUnit !== unit || this._lastDesc !== description) {
+        if (this._lastValue !== value ||
+            this._lastUnit !== unit ||
+            this._lastDesc !== description ||
+            this._lastTheme !== this.config.theme ||
+            this._lastResolvedIcon !== icon ||
+            this._lastTitle !== this.config.title) {
+
             this._lastValue = value;
             this._lastUnit = unit;
             this._lastDesc = description;
-            this.render(value, unit, description);
+            this._lastTheme = this.config.theme;
+            this._lastResolvedIcon = icon;
+            this._lastTitle = this.config.title;
+
+            this.render(value, unit, description, icon);
         }
     }
 
     autoScale(value, unit) {
         let num = parseFloat(value);
-        if (isNaN(num)) return { value, unit }; // Return original if not a number
+        if (isNaN(num)) return { value, unit };
 
         const originalUnit = (unit || "").trim();
         const lowerUnit = originalUnit.toLowerCase();
 
-        // DEFINITION OF SCALABLE UNITS
         const rules = {
             'wh': ['kWh', 'MWh', 'GWh'],
             'kwh': ['MWh', 'GWh'],
@@ -91,7 +106,6 @@ class TritonNetNumberCard extends HTMLElement {
         const suffixes = rules[lowerUnit];
         let currentSuffixIndex = -1;
 
-        // Scale if >= 1000
         while (num >= 1000 && currentSuffixIndex < suffixes.length - 1) {
             num /= 1000;
             currentSuffixIndex++;
@@ -107,83 +121,180 @@ class TritonNetNumberCard extends HTMLElement {
         return { value, unit: originalUnit };
     }
 
-    render(value, unit, description) {
+    render(value, unit, description, icon) {
         if (!this.shadowRoot) {
             this.attachShadow({ mode: 'open' });
         }
 
+        const themeClass = `theme-${this.config.theme}`;
+        const iconHtml = icon ? `<ha-icon icon="${icon}" class="header-icon"></ha-icon>` : '';
+        const titleText = this.config.title !== undefined ? this.config.title : 'Unknown Entity';
+
         this.shadowRoot.innerHTML = `
             <style>
-                :host { display: block; width: 100%; height: 100%; }
+                :host { 
+                    display: block; 
+                    width: 100%; 
+                    height: 100%; 
+                    --tnc-default-font: 'Roboto', Noto, -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+                }
                 * { box-sizing: border-box; }
+
+                /* --- THEME DEFINITIONS --- */
+
+                .theme-triton-hud {
+                    --tnc-bg-wrapper: linear-gradient(135deg, rgba(0, 243, 255, 0.4), rgba(0, 243, 255, 0.1));
+                    --tnc-wrapper-padding: 1px;
+                    --tnc-bg-card: rgba(15, 15, 20, 0.85);
+                    --tnc-card-border: none;
+                    --tnc-clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 15px 100%, 0 calc(100% - 15px));
+                    --tnc-border-radius: 0px;
+                    --tnc-card-padding: 12px;
+                    --tnc-backdrop-filter: blur(10px);
+                    
+                    --tnc-title-font: 'Orbitron', sans-serif;
+                    --tnc-title-color: #c8d6e5;
+                    --tnc-title-weight: 700;
+                    --tnc-title-transform: uppercase;
+                    --tnc-title-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+                    
+                    --tnc-value-font: 'Orbitron', sans-serif;
+                    --tnc-value-color: #00d2d3;
+                    --tnc-value-weight: 900;
+                    --tnc-value-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
+                    
+                    --tnc-unit-font: 'Orbitron', sans-serif;
+                    --tnc-unit-color: rgba(0, 243, 255, 0.8);
+                    --tnc-unit-weight: 700;
+
+                    --tnc-desc-font: 'Rajdhani', sans-serif;
+                    --tnc-desc-color: #8a8a9b;
+                    
+                    --tnc-grid-cols: 30% 70%;
+                    --tnc-desc-display: flex; 
+                    --tnc-value-align: flex-end;
+                    --tnc-icon-display: none; 
+                    --tnc-header-justify: flex-start;
+                    --tnc-content-margin-top: 0px;
+                }
+
+                .theme-minimal-dark {
+                    --tnc-bg-wrapper: transparent;
+                    --tnc-wrapper-padding: 0px;
+                    --tnc-bg-card: rgb(32, 33, 36); /* Native HA Dark Card Background */
+                    --tnc-card-border: 1px solid rgb(42, 43, 46); /* Native HA Dark Card Border */
+                    --tnc-clip-path: none;
+                    --tnc-border-radius: 12px;
+                    --tnc-card-padding: 16px;
+                    --tnc-backdrop-filter: none;
+                    
+                    --tnc-title-font: var(--tnc-default-font);
+                    --tnc-title-color: #9e9e9e; /* Secondary Text Color */
+                    --tnc-title-weight: 500;
+                    --tnc-title-transform: none;
+                    --tnc-title-shadow: none;
+                    
+                    --tnc-value-font: var(--tnc-default-font);
+                    --tnc-value-color: #e1e1e1; /* Primary Text Color */
+                    --tnc-value-weight: 400;
+                    --tnc-value-shadow: none;
+                    
+                    --tnc-unit-font: var(--tnc-default-font);
+                    --tnc-unit-color: #9e9e9e; /* Secondary Text Color */
+                    --tnc-unit-weight: 400;
+
+                    --tnc-desc-font: var(--tnc-default-font);
+                    --tnc-desc-color: #9e9e9e;
+
+                    --tnc-grid-cols: 1fr; 
+                    --tnc-desc-display: none; 
+                    --tnc-value-align: flex-start; 
+                    --tnc-icon-display: block;
+                    --tnc-icon-color: #9e9e9e; /* Secondary Icon Color */
+                    --tnc-header-justify: space-between;
+                    --tnc-content-margin-top: 12px;
+                }
+
+                /* --- COMPONENT STYLES --- */
                 
                 .card-wrapper {
                     position: relative; 
                     width: 100%; 
-                    height: 120px; 
+                    height: 100%; 
                     margin: 0 auto;
-                    clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 15px 100%, 0 calc(100% - 15px));
-                    background: linear-gradient(135deg, rgba(0, 243, 255, 0.4), rgba(0, 243, 255, 0.1));
-                    padding: 1px;
+                    clip-path: var(--tnc-clip-path);
+                    background: var(--tnc-bg-wrapper);
+                    padding: var(--tnc-wrapper-padding);
+                    border-radius: var(--tnc-border-radius);
                 }
                 
                 .hud-card {
                     width: 100%; 
                     height: 100%; 
-                    background: rgba(15, 15, 20, 0.85);
-                    clip-path: polygon(0 0, calc(100% - 15px) 0, 100% 15px, 100% 100%, 15px 100%, 0 calc(100% - 15px));
+                    background: var(--tnc-bg-card);
+                    border: var(--tnc-card-border);
+                    clip-path: var(--tnc-clip-path);
+                    border-radius: var(--tnc-border-radius);
                     display: flex; 
                     flex-direction: column; 
-                    padding: 12px;
+                    padding: var(--tnc-card-padding);
                     position: relative; 
-                    backdrop-filter: blur(10px);
+                    backdrop-filter: var(--tnc-backdrop-filter);
                 }
                 
-                /* HEADER - Top Section */
                 .card-header { 
                     flex: 0 0 auto; 
                     width: 100%; 
-                    margin-bottom: 8px; 
-                    overflow: hidden; 
+                    overflow: hidden;
+                    display: flex;
+                    justify-content: var(--tnc-header-justify);
+                    align-items: center;
                 }
                 
                 .card-title {
-                    font-family: 'Orbitron', sans-serif; 
-                    font-size: 22px; 
-                    font-weight: 700; 
-                    color: #c8d6e5;
-                    text-transform: uppercase; 
+                    font-family: var(--tnc-title-font); 
+                    font-weight: var(--tnc-title-weight);
+                    color: var(--tnc-title-color);
+                    text-transform: var(--tnc-title-transform);
                     letter-spacing: 0.5px; 
-                    text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
-                    line-height: 1; 
+                    text-shadow: var(--tnc-title-shadow);
+                    line-height: 1.2; 
                     white-space: nowrap; 
-                    display: block; 
-                    width: 100%;
+                    display: block;
+                    text-overflow: ellipsis;
+                    overflow: hidden;
+                }
+
+                .header-icon {
+                    display: var(--tnc-icon-display);
+                    color: var(--tnc-icon-color);
+                    --mdc-icon-size: 24px; 
+                    margin-left: 8px;
+                    flex-shrink: 0;
                 }
                 
-                /* CONTENT GRID - 30% / 70% Split */
                 .content-grid { 
                     flex: 1; 
                     width: 100%;
+                    margin-top: var(--tnc-content-margin-top);
                     display: grid;
-                    grid-template-columns: 30% 70%; 
+                    grid-template-columns: var(--tnc-grid-cols);
                     gap: 0; 
                     align-items: center;
                     overflow: hidden;
                     min-height: 0;
                 }
                 
-                /* 30% Description Section */
                 .card-desc {
+                    display: var(--tnc-desc-display); 
                     min-width: 0;
                     height: 100%;
                     padding-right: 12px;
-                    font-family: 'Rajdhani', sans-serif;
+                    font-family: var(--tnc-desc-font);
                     font-size: 14px; 
                     font-weight: 500; 
-                    color: #8a8a9b; 
+                    color: var(--tnc-desc-color);
                     line-height: 1.3;
-                    display: flex;
                     align-items: center;
                     overflow: hidden;
                 }
@@ -195,14 +306,13 @@ class TritonNetNumberCard extends HTMLElement {
                     hyphens: auto;
                 }
                 
-                /* 70% Value Section */
                 .value-section {
                     min-width: 0;
                     height: 100%;
                     position: relative;
                     display: flex; 
-                    justify-content: flex-end;
-                    align-items: center;
+                    justify-content: var(--tnc-value-align);
+                    align-items: baseline;
                     overflow: hidden;
                 }
                 
@@ -214,28 +324,26 @@ class TritonNetNumberCard extends HTMLElement {
                 }
                 
                 .number {
-                    font-family: 'Orbitron', sans-serif; 
-                    font-size: 54px; 
-                    font-weight: 900;
-                    color: #00d2d3; 
-                    text-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
+                    font-family: var(--tnc-value-font);
+                    font-weight: var(--tnc-value-weight);
+                    color: var(--tnc-value-color);
+                    text-shadow: var(--tnc-value-shadow);
                     line-height: 1;
                 }
                 
                 .unit {
-                    font-family: 'Orbitron', sans-serif; 
-                    font-size: 18px; 
-                    margin-left: 4px;
-                    color: rgba(0, 243, 255, 0.8); 
-                    font-weight: 700;
-                    transform: translateY(-4px);
+                    font-family: var(--tnc-unit-font);
+                    margin-left: 6px;
+                    color: var(--tnc-unit-color);
+                    font-weight: var(--tnc-unit-weight);
                 }
             </style>
             
-            <div class="card-wrapper" id="cardWrapper">
+            <div class="card-wrapper ${themeClass}" id="cardWrapper">
                 <div class="hud-card">
                     <div class="card-header">
-                        <div class="card-title" id="cardTitle">${this.config.title || 'Power Usage'}</div>
+                        <div class="card-title" id="cardTitle">${titleText}</div>
+                        ${iconHtml}
                     </div>
                     
                     <div class="content-grid">
@@ -256,9 +364,7 @@ class TritonNetNumberCard extends HTMLElement {
 
         this.attachResizeObserver();
         requestAnimationFrame(() => {
-            if (this._fontsLoaded) {
-                this.fitAll();
-            }
+            this.fitAll();
         });
     }
 
@@ -276,8 +382,15 @@ class TritonNetNumberCard extends HTMLElement {
     }
 
     fitAll() {
+        if (!this.shadowRoot.getElementById('cardTitle')) return;
+
         this.fitTitle();
-        this.fitDescription();
+
+        const descSection = this.shadowRoot.getElementById('descSection');
+        if (descSection && getComputedStyle(descSection).display !== 'none') {
+            this.fitDescription();
+        }
+
         this.fitNumber();
     }
 
@@ -286,12 +399,20 @@ class TritonNetNumberCard extends HTMLElement {
         if (!titleEl) return;
 
         const parentWidth = titleEl.parentElement.clientWidth;
-        if (parentWidth === 0) return;
+        const iconEl = this.shadowRoot.querySelector('.header-icon');
+        const iconWidth = iconEl ? iconEl.clientWidth + 8 : 0;
+        const availableWidth = parentWidth - iconWidth;
 
-        let fontSize = 22;
+        if (availableWidth <= 0) return;
+
+        const isMinimal = this.config.theme === 'minimal-dark';
+
+        let fontSize = isMinimal ? 14 : 22;
+        let minFontSize = isMinimal ? 11 : 12;
+
         titleEl.style.fontSize = fontSize + 'px';
 
-        while (titleEl.scrollWidth > parentWidth && fontSize > 12) {
+        while (titleEl.scrollWidth > availableWidth && fontSize > minFontSize) {
             fontSize--;
             titleEl.style.fontSize = fontSize + 'px';
         }
@@ -304,12 +425,12 @@ class TritonNetNumberCard extends HTMLElement {
 
         const availableWidth = descSection.clientWidth;
         const availableHeight = descSection.clientHeight;
-        if (availableWidth === 0 || availableHeight === 0) return;
+
+        if (availableWidth < 5 || availableHeight === 0) return;
 
         let fontSize = 14;
         descText.style.fontSize = fontSize + 'px';
 
-        // Shrink if text overflows vertically or horizontally
         while ((descText.scrollHeight > availableHeight || descText.scrollWidth > availableWidth) && fontSize > 9) {
             fontSize--;
             descText.style.fontSize = fontSize + 'px';
@@ -327,32 +448,38 @@ class TritonNetNumberCard extends HTMLElement {
         const availableWidth = valueSection.clientWidth;
         if (availableWidth === 0) return;
 
-        // Start at maximum size
-        let currentFontSize = 54;
+        const isMinimal = this.config.theme === 'minimal-dark';
+
+        let currentFontSize = isMinimal ? 28 : 54;
+        let minFontSize = 14;
         displayNumber.style.fontSize = currentFontSize + 'px';
 
-        // Shrink until it fits
-        let contentWidth = numberWrapper.scrollWidth;
-        while (contentWidth > availableWidth && currentFontSize > 14) {
+        while (numberWrapper.scrollWidth > availableWidth && currentFontSize > minFontSize) {
             currentFontSize--;
             displayNumber.style.fontSize = currentFontSize + 'px';
-            contentWidth = numberWrapper.scrollWidth;
         }
 
-        // Adjust unit size and position based on number size
-        if (currentFontSize < 30) {
-            unitEl.style.transform = "translateY(0px)";
-            unitEl.style.fontSize = "12px";
-        } else if (currentFontSize < 40) {
-            unitEl.style.transform = "translateY(-2px)";
-            unitEl.style.fontSize = "14px";
-        } else if (currentFontSize < 50) {
-            unitEl.style.transform = "translateY(-3px)";
-            unitEl.style.fontSize = "16px";
+        let unitSize;
+        let unitTransform = "translateY(0px)";
+
+        if (isMinimal) {
+            unitSize = Math.min(14, currentFontSize * 0.75);
         } else {
-            unitEl.style.transform = "translateY(-4px)";
-            unitEl.style.fontSize = "18px";
+            if (currentFontSize < 30) {
+                unitSize = 14;
+            } else if (currentFontSize < 40) {
+                unitSize = 16;
+            } else if (currentFontSize < 50) {
+                unitSize = 18;
+                unitTransform = "translateY(-2px)";
+            } else {
+                unitSize = 20;
+                unitTransform = "translateY(-4px)";
+            }
         }
+
+        unitEl.style.fontSize = unitSize + 'px';
+        unitEl.style.transform = unitTransform;
     }
 }
 
@@ -362,5 +489,5 @@ window.customCards = window.customCards || [];
 window.customCards.push({
     type: "custom-ha-tritonnet-number-card",
     name: "TritonNet Number Card",
-    description: "Futuristic HUD card with auto-scaling text and templates."
+    description: "Futuristic HUD card with auto-scaling text, templates, and themes."
 });
